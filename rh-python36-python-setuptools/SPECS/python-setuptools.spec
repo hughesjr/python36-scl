@@ -2,7 +2,7 @@
 %{!?scl:%global pkg_name %{name}}
 
 %global srcname setuptools
-%global build_wheel 1
+%global build_wheel 0 
 # We don't ship pytest nor mock with scls so we don't run the test suite
 %global with_check 0
 
@@ -14,7 +14,7 @@
 
 Name:           %{?scl_prefix}python-setuptools
 Version:        36.5.0
-Release:        1%{?dist}
+Release:        0.1%{?dist}
 Summary:        Easily build and distribute Python packages
 
 Group:          Applications/System
