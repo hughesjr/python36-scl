@@ -2,7 +2,7 @@
 %{!?scl:%global pkg_name %{name}}
 
 %if (! 0%{?rhel}) || 0%{?rhel} > 6
-%global build_wheel 1
+%global build_wheel 0
 %endif
 %if 0%{?rhel} && 0%{?rhel} < 6
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
@@ -15,7 +15,7 @@
 
 Name:           %{?scl_prefix}python-%{srcname}
 Version:        9.0.1
-Release:        2%{?dist}
+Release:        0.2%{?dist}
 Summary:        A tool for installing and managing Python packages
 
 Group:          Development/Libraries
