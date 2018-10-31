@@ -1,0 +1,281 @@
+diff --git a/doc/conf.py b/doc/conf.py
+index 34ea147..e083afd 100644
+--- a/doc/conf.py
++++ b/doc/conf.py
+@@ -22,8 +22,9 @@ import sys, os
+ 
+ # need to be brutal because of easy_install's pth hacks:
+ sys.path.insert(0,
++    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'build', 'lib')))
++sys.path.insert(1,
+     os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+-sys.path.insert(0, os.path.abspath('.'))
+ 
+ from nose import __versioninfo__ as nose_version
+ nose_version = tuple(str(x) for x in nose_version)
+@@ -200,7 +201,7 @@ html_theme_options = {
+ 
+ # the css mostly overrides this:
+ html_theme = 'default'
+-    
++
+ # Options for LaTeX output
+ # ------------------------
+ 
+diff --git a/nose/config.py b/nose/config.py
+index 125eb55..699fa16 100644
+--- a/nose/config.py
++++ b/nose/config.py
+@@ -3,7 +3,7 @@ import optparse
+ import os
+ import re
+ import sys
+-import ConfigParser
++import configparser
+ from optparse import OptionParser
+ from nose.util import absdir, tolist
+ from nose.plugins.manager import NoPlugins
+@@ -62,24 +62,24 @@ class ConfiguredDefaultsOptionParser(object):
+     def _readFromFilenames(self, filenames):
+         config = []
+         for filename in filenames:
+-            cfg = ConfigParser.RawConfigParser()
++            cfg = configparser.RawConfigParser()
+             try:
+                 cfg.read(filename)
+-            except ConfigParser.Error, exc:
++            except configparser.Error as exc:
+                 raise ConfigError("Error reading config file %r: %s" %
+                                   (filename, str(exc)))
+             config.extend(self._configTuples(cfg, filename))
+         return config
+ 
+     def _readFromFileObject(self, fh):
+-        cfg = ConfigParser.RawConfigParser()
++        cfg = configparser.RawConfigParser()
+         try:
+             filename = fh.name
+         except AttributeError:
+             filename = '<???>'
+         try:
+             cfg.readfp(fh)
+-        except ConfigParser.Error, exc:
++        except configparser.Error as exc:
+             raise ConfigError("Error reading config file %r: %s" %
+                               (filename, str(exc)))
+         return self._configTuples(cfg, filename)
+@@ -89,7 +89,7 @@ class ConfiguredDefaultsOptionParser(object):
+             config_files.readline
+         except AttributeError:
+             filename_or_filenames = config_files
+-            if isinstance(filename_or_filenames, basestring):
++            if isinstance(filename_or_filenames, str):
+                 filenames = [filename_or_filenames]
+             else:
+                 filenames = filename_or_filenames
+@@ -113,12 +113,12 @@ class ConfiguredDefaultsOptionParser(object):
+                 continue
+             try:
+                 self._processConfigValue(name, value, values, parser)
+-            except NoSuchOptionError, exc:
++            except NoSuchOptionError as exc:
+                 self._file_error(
+                     "Error reading config file %r: "
+                     "no such option %r" % (filename, exc.name),
+                     name=name, filename=filename)
+-            except optparse.OptionValueError, exc:
++            except optparse.OptionValueError as exc:
+                 msg = str(exc).replace('--' + name, repr(name), 1)
+                 self._file_error("Error reading config file %r: "
+                                  "%s" % (filename, msg),
+@@ -128,12 +128,12 @@ class ConfiguredDefaultsOptionParser(object):
+         values = self._parser.get_default_values()
+         try:
+             config = self._readConfiguration(config_files)
+-        except ConfigError, exc:
++        except ConfigError as exc:
+             self._error(str(exc))
+         else:
+             try:
+                 self._applyConfigurationToValues(self._parser, config, values)
+-            except ConfigError, exc:
++            except ConfigError as exc:
+                 self._error(str(exc))
+         return self._parser.parse_args(args, values)
+ 
+@@ -195,7 +195,7 @@ class Config(object):
+                                           r'^_',
+                                           r'^setup\.py$',
+                                           ]
+-        self.ignoreFiles = map(re.compile, self.ignoreFilesDefaultStrings)
++        self.ignoreFiles = list(map(re.compile, self.ignoreFilesDefaultStrings))
+         self.include = None
+         self.loggingConfig = None
+         self.logStream = sys.stderr
+@@ -247,7 +247,7 @@ class Config(object):
+         d = self.__dict__.copy()
+         # don't expose env, could include sensitive info
+         d['env'] = {}
+-        keys = [ k for k in d.keys()
++        keys = [ k for k in list(d.keys())
+                  if not k.startswith('_') ]
+         keys.sort()
+         return "Config(%s)" % ', '.join([ '%s=%r' % (k, d[k])
+@@ -328,17 +328,17 @@ class Config(object):
+             self.testMatch = re.compile(options.testMatch)
+ 
+         if options.ignoreFiles:
+-            self.ignoreFiles = map(re.compile, tolist(options.ignoreFiles))
++            self.ignoreFiles = list(map(re.compile, tolist(options.ignoreFiles)))
+             log.info("Ignoring files matching %s", options.ignoreFiles)
+         else:
+             log.info("Ignoring files matching %s", self.ignoreFilesDefaultStrings)
+ 
+         if options.include:
+-            self.include = map(re.compile, tolist(options.include))
++            self.include = list(map(re.compile, tolist(options.include)))
+             log.info("Including tests matching %s", options.include)
+ 
+         if options.exclude:
+-            self.exclude = map(re.compile, tolist(options.exclude))
++            self.exclude = list(map(re.compile, tolist(options.exclude)))
+             log.info("Excluding tests matching %s", options.exclude)
+ 
+         # When listing plugins we don't want to run them
+@@ -623,15 +623,15 @@ class NoOptions(object):
+     def __getnewargs__(self):
+         return ()
+ 
+-    def __nonzero__(self):
++    def __bool__(self):
+         return False
+ 
+ 
+ def user_config_files():
+     """Return path to any existing user config files
+     """
+-    return filter(os.path.exists,
+-                  map(os.path.expanduser, config_files))
++    return list(filter(os.path.exists,
++                  list(map(os.path.expanduser, config_files))))
+ 
+ 
+ def all_config_files():
+diff --git a/nose/core.py b/nose/core.py
+index 49e7939..bce6b10 100644
+--- a/nose/core.py
++++ b/nose/core.py
+@@ -150,7 +150,7 @@ class TestProgram(unittest.TestProgram):
+         if self.config.options.version:
+             from nose import __version__
+             sys.stdout = sys.__stdout__
+-            print "%s version %s" % (os.path.basename(sys.argv[0]), __version__)
++            print("%s version %s" % (os.path.basename(sys.argv[0]), __version__))
+             sys.exit(0)
+ 
+         if self.config.options.showPlugins:
+@@ -224,26 +224,26 @@ class TestProgram(unittest.TestProgram):
+         v = self.config.verbosity
+         self.config.plugins.sort()
+         for p in self.config.plugins:
+-            print "Plugin %s" % p.name
++            print("Plugin %s" % p.name)
+             if v >= 2:
+-                print "  score: %s" % p.score
+-                print '\n'.join(textwrap.wrap(p.help().strip(),
++                print("  score: %s" % p.score)
++                print('\n'.join(textwrap.wrap(p.help().strip(),
+                                               initial_indent='  ',
+-                                              subsequent_indent='  '))
++                                              subsequent_indent='  ')))
+                 if v >= 3:
+                     parser = DummyParser()
+                     p.addOptions(parser)
+                     if len(parser.options):
+-                        print
+-                        print "  Options:"
++                        print()
++                        print("  Options:")
+                         for opts, help in parser.options:
+-                            print '  %s' % (', '.join(opts))
++                            print('  %s' % (', '.join(opts)))
+                             if help:
+-                                print '\n'.join(
++                                print('\n'.join(
+                                     textwrap.wrap(help.strip(),
+                                                   initial_indent='    ',
+-                                                  subsequent_indent='    '))
+-                print
++                                                  subsequent_indent='    ')))
++                print()
+ 
+     def usage(cls):
+         import nose
+diff --git a/nose/pyversion.py b/nose/pyversion.py
+index 091238d..3de934d 100644
+--- a/nose/pyversion.py
++++ b/nose/pyversion.py
+@@ -16,12 +16,12 @@ __all__ = ['make_instancemethod', 'cmp_to_key', 'sort_list', 'ClassType',
+ # In Python 3.x, all strings are unicode (the call to 'unicode()' in the 2.x
+ # source will be replaced with 'str()' when running 2to3, so this test will
+ # then become true)
+-UNICODE_STRINGS = (type(unicode()) == type(str()))
++UNICODE_STRINGS = (type(str()) == type(str()))
+ 
+ if sys.version_info[:2] < (3, 0):
+     def force_unicode(s, encoding='UTF-8'):
+         try:
+-            s = unicode(s)
++            s = str(s)
+         except UnicodeDecodeError:
+             s = str(s).decode(encoding, 'replace')
+ 
+@@ -35,7 +35,7 @@ else:
+ try:
+     import new
+     def make_instancemethod(function, instance):
+-        return new.instancemethod(function.im_func, instance,
++        return new.instancemethod(function.__func__, instance,
+                                   instance.__class__)
+ except ImportError:
+     def make_instancemethod(function, instance):
+@@ -73,8 +73,8 @@ else:
+ # thus types.ClassType and types.TypeType don't exist anymore.  For
+ # compatibility, we make sure they still work.
+ if hasattr(types, 'ClassType'):
+-    ClassType = types.ClassType
+-    TypeType = types.TypeType
++    ClassType = type
++    TypeType = type
+ else:
+     ClassType = type
+     TypeType = type
+@@ -90,7 +90,7 @@ class UnboundMethod:
+         self._func = func
+         self.__self__ = UnboundSelf(cls)
+         if sys.version_info < (3, 0):
+-            self.im_class = cls
++            self.__self__.__class__ = cls
+         self.__doc__ = getattr(func, '__doc__', None)
+ 
+     def address(self):
+@@ -161,7 +161,7 @@ else:
+ 
+     def isgenerator(func):
+         try:
+-            return func.func_code.co_flags & CO_GENERATOR != 0
++            return func.__code__.co_flags & CO_GENERATOR != 0
+         except AttributeError:
+             return False
+ 
+@@ -187,8 +187,8 @@ if sys.version_info[:2] < (3, 0):
+                 msg = force_unicode(msg, encoding=encoding)
+                 clsname = force_unicode(ev.__class__.__name__,
+                         encoding=encoding)
+-                ev = u'%s: %s' % (clsname, msg)
+-        elif not isinstance(ev, unicode):
++                ev = '%s: %s' % (clsname, msg)
++        elif not isinstance(ev, str):
+             ev = repr(ev)
+ 
+         return force_unicode(ev, encoding=encoding)
